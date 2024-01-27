@@ -2,7 +2,11 @@
 
 # Marquis
 
-Marquis is a batch processing helper program and makes it easier to translate large files using GPT bots. It's been built with Poe's bot server API on Modal, a serverless platform. Besides being a useful help itself as a bot, it serves as a working example of current API usage for both platforms. For the purpose of this bot, the program uses built in data structures like `modal.Dict` and explores ways (and gotchas) to persist data between two sets of APIs with features like `modal.Secret`. At the heart of this program, it's acutally a proxy server program, taking care of incoming request from the client and passing forward to Poe bot servers with certain changes made during this process with `FastAPI_Poe`. In addtion to features required for the purpose of this program, the bot implements features such as uploading static files to a R2 bucket (with their weird API) so this part may also serve some educationed purpose.
+Marquis is a batch processing helper program designed to facilitate the translation of large files using GPT bots. It has been developed using Poe's bot server API on Modal, a serverless platform (so no server setup required). Marquis is not only a useful tool in its own right but also serves as a practical example of how to utilize the current APIs of both platforms.
+
+This program leverages built-in data structures, such as `modal.Dict`, and investigates methods (along with potential pitfalls) for persisting data between two different API sets. This is achieved through features like `modal.Secret`. At its core, Marquis functions as a proxy server: it manages incoming requests from clients and forwards them to the Poe bot servers, applying specific modifications during this process with the help of `fastapi_poe`.
+
+In addition to fulfilling its primary purpose, the bot includes features like uploading static files to an R2 bucket, despite the complexities added. Therefore, this component may also serve an educational purpose for those looking for a working example due to the lack of proper documentation.
 
 ## How to deploy a bot yourself and how to use it
 
