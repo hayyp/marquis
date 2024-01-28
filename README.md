@@ -20,6 +20,7 @@ In addition to fulfilling its primary purpose, the bot includes features like up
 - To send a file directly to a bot server, you don't need to change anything and GPT bots can now receive attachments just fine after some previous updates (it would not help to tell the bot you have stored the file in your local directory).
 - There are two ways to edit the content of requests, `ServerSentEvent` or `fastapi_poe.types.ProtocolMessage` (and maybe `PartialResponse`). They are just the same so don't get confused when you see them used almost interchangably. `fastapi_api` is pretty simple, so you might want to check that out before you start. Make sure you understand the stuctures of requests from both way.
 - `modal deploy` takes only one file. If you want to keep your code clean and split your code into multiple files, use `mounts=[modal.Mount.from_local_python_packages("config")]` from `stub.function` to include the files/modules. ~~As you might have guessed, you can't use this feature on your bot definition.~~(Update: you can add them to the definition of the function that's instantiating the class)
+- Sometimes you will get weird errors from GPT bots such as `called on bot that has 0 or undefined call count`, and the only way to solve the problem is to shut down your modal app and redeploy your code, while your code can remain completely the same.
 - When dealing with Asian characters, use the `encoding` attribute for what you get from `requests.get`.
 - My python interpreter shows error whenever I access `stub.users`, so don't panic, and that's fine.
 
