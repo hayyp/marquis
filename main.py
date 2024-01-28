@@ -297,7 +297,7 @@ class MarquisBot(fp.PoeBot):
         )-> fp.SettingsResponse:
         return fp.SettingsResponse(
             server_bot_dependencies = {
-                config.DEFAULT_PROMPT_BOT: 5
+                config.DEFAULT_PROMPT_BOT: config.BOT_USAGE_LIMIT
             },
             allow_attachments = config.ALLOW_ATTACHMENTS,
             introduction_message = config.SYSTEM_INTRO
