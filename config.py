@@ -11,6 +11,8 @@ BOT_USAGE_LIMIT = 1
 R2_BUCK = "luszuglh"
 SUGGESTED_REPLY_1 = "Give me more"
 SUGGESTED_REPLY_2 = "I want my file now"
+SUGGESTED_REPLY_3 = "I am not satisfied with the translation"
+SYSTEM_INTRO = "Please send me the file you need me to translate"
 MARQUIS_SYSTEM_PROMPT = """
     You are a novelist and translator. 
     You focuse on the flow and creativity of your writing. 

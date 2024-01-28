@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import io
 import typing
 import boto3
 import modal 
@@ -9,7 +8,9 @@ import requests
 from datetime import datetime
 
 import fastapi_poe as fp
+
 import config
+import utils
 
 def download_book(url: str) -> str:
     try:
@@ -103,6 +104,7 @@ class MarquisBot(fp.PoeBot):
 
         if user_id not in stub.users: 
         # a user that is never seen before
+
             try:
                 user_template: dict = {
                     "chapter_lst": [],
@@ -124,6 +126,9 @@ class MarquisBot(fp.PoeBot):
             print(f"Error: {e}")
 
         """
+        # Will try to system prompt later according to
+        # community.openai.com/t/understanding-role-management-in-openais-api-two-methods-compared
+
         MARQUIS_SYSTEM_MESSAGE = fp.types.ProtocolMessage(
             # Poe bot receives system prompt + user prompt
             # user prompt = real user prompt + file location
@@ -135,7 +140,7 @@ class MarquisBot(fp.PoeBot):
         """        
 
         request.query[-1].content = config.MARQUIS_SYSTEM_PROMPT + "\n\n"
-        # shared by all situations
+
         # for building up tmp_user to be assigned to stub.users[user_id]
         tmp_chapter_lst = []
         tmp_translation_txt = ""
@@ -143,32 +148,38 @@ class MarquisBot(fp.PoeBot):
         is_EOF = False
 
         if not has_unfinished_chapters: 
-        # 1. never seen or 2. recorded yet no attachments
-            
+            # the following code gets request ready for poe bots
+            # at the same time, initialization for a new user is required
+
             if request.query[-1].attachments: 
+                # new user + attachment
+
                 attachment = request.query[-1].attachments[0]
                 try:
+                    # download and store to a persisted dict
                     process_book(
                         attachment.url,
                         tmp_chapter_lst,
                         request.conversation_id              
                     )
 
+                    # update user
                     tmp_user: dict = {
                         "chapter_lst": tmp_chapter_lst, #updated
                         "translation_txt": tmp_translation_txt,
                         "translation_lst": tmp_translation_lst
                     }
                     stub.users[user_id] = tmp_user
+
+                    # update request to be sent to poe bots
                     request.query[-1].content += tmp_chapter_lst[0]
                 except Exception as e:
                     print(f"Error processing book: {e}")
+        else: 
+            # the following code gets request ready for poe bots
+            # at the same time, no initialization is required
 
-            for message in request.query:
-                message.attachments = [] 
-        else:
             if config.SUGGESTED_REPLY_1 in query_content:
-                # give me more
                 tmp_user: dict = stub.users[user_id]
                 tmp_user["chapter_lst"].pop(0)
                 tmp_user["translation_lst"] += ["\n\n" + tmp_user["translation_txt"]]
@@ -183,8 +194,6 @@ class MarquisBot(fp.PoeBot):
                         for chapter in tmp_user["translation_lst"]:
                             tmp_file.write(chapter)
 
-                    tmp_user["translation_lst"] = []
-                    
                     with open (f"{formatted_current_time}.txt", "rb") as tmp_file:
                         file_data = tmp_file.read()
 
@@ -192,14 +201,12 @@ class MarquisBot(fp.PoeBot):
                         request.access_key, 
                         request.message_id,
                         file_data = file_data,
-                        filename = f"{formatted_current_time}.txt"
+                        filename = "translated_text.txt"
                     )
 
-                    stub.users[user_id] = tmp_user 
+                    stub.users.pop(user_id)
                     is_EOF = True 
                     # should not communicate with Poe bots anymore
-                    
-
                     yield fp.PartialResponse(
                         text=(
                             "I'm afraid you have reached the end of your file. "
@@ -209,15 +216,44 @@ class MarquisBot(fp.PoeBot):
                 else:
                     request.query[-1].content += tmp_user["chapter_lst"][0]
 
-
             elif config.SUGGESTED_REPLY_2 in query_content:
-                print("world")
+                #update user
+                tmp_user: dict = stub.users[user_id]
+                tmp_user["chapter_lst"].pop(0)
+                tmp_user["translation_lst"] += ["\n\n" + tmp_user["translation_txt"]]
+                tmp_user["translation_txt"] = ""
+                stub.users[user_id] = tmp_user
+                print(f"EXPORTING FROM {tmp_user} ...")
+
+                with open ("tmp.txt", "w", encoding="utf-8") as tmp_file:
+                    for chapter in tmp_user["translation_lst"]:
+                        tmp_file.write(chapter)
+                with open ("tmp.txt", "rb") as tmp_file:
+                    await self.post_message_attachment(
+                        request.access_key, 
+                        request.message_id,
+                        file_data = tmp_file,
+                        filename = "translated_text.txt"
+                    )
+                    stub.users.pop(user_id)
+                    is_EOF = True
+                    yield fp.PartialResponse(
+                        text = (
+                            "Of course! Here is your translation file:\n"
+                        )
+                    )
+            elif config.SUGGESTED_REPLY_3 in query_content:
+                request.query[-1].content += stub.users[user_id]["chapter_lst"][0]
+            else: # chatting mode
+                print("the user just want some chatting")
+        
+        # remove any possible attachments from user
+        # or they will be sent to poe bots along with updated message
+        for message in request.query:
+            message.attachments = [] 
 
         if not is_EOF:
-            print("Sending request\n\n")
-            print(f"{request}\n\n")
             async for partial in fp.stream_request(
-                # prompt + all attachments stored locally
                 request, config.DEFAULT_PROMPT_BOT, request.access_key
             ):
                 if isinstance(partial, fp.types.MetaResponse):
@@ -242,15 +278,15 @@ class MarquisBot(fp.PoeBot):
             stub.users[user_id] = tmp_user
             
             yield fp.PartialResponse(
-                text="Give me more", 
+                text=config.SUGGESTED_REPLY_1, 
                 is_suggested_reply = True
             )
             yield fp.PartialResponse(
-                text="I want my file now", 
+                text=config.SUGGESTED_REPLY_2, 
                 is_suggested_reply = True
             ) 
             yield fp.PartialResponse(
-                text="Not satisfied with the translation?", 
+                text=config.SUGGESTED_REPLY_3, 
                 is_suggested_reply = True
             ) 
                 
@@ -264,10 +300,7 @@ class MarquisBot(fp.PoeBot):
                 config.DEFAULT_PROMPT_BOT: 5
             },
             allow_attachments = config.ALLOW_ATTACHMENTS,
-            introduction_message = (
-                "Please tell me which bot will you be willing to use,"
-                " and send me the file you need me to translate."
-            )
+            introduction_message = config.SYSTEM_INTRO
         )
 
 
@@ -276,7 +309,8 @@ class MarquisBot(fp.PoeBot):
 @stub.function(
     image=image_marquis, 
     mounts=[
-        modal.Mount.from_local_python_packages("config")
+        modal.Mount.from_local_python_packages("config"),
+        modal.Mount.from_local_python_packages("utils")
     ],
     secrets=[
         modal.Secret.from_name("poe-secret"),
