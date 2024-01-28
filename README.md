@@ -23,6 +23,12 @@ In addition to fulfilling its primary purpose, the bot includes features like up
 - When dealing with Asian characters, use the `encoding` attribute for what you get from `requests.get`.
 - My python interpreter shows error whenever I access `stub.users`, so don't panic, and that's fine.
 
+## Todo
+
+- Allow chats beyond existing suggested replies
+- Auto-split chapters that exceed token limits
+
+
 ### Prerequisites
 
 Although the bot runs in the cloud, before you begin, ensure you have used pip to install everything:
