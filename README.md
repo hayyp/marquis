@@ -28,6 +28,7 @@ In addition to fulfilling its primary purpose, the bot includes features like up
 
 - Allow chats beyond existing suggested replies
 - Auto-split chapters that exceed token limits
+- ~~Use `map.aio` and make certain blocking functions asynchronous~~
 
 
 ### Prerequisites

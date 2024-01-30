@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import typing
+import asyncio
 import boto3
 import modal 
 import requests
@@ -25,7 +26,7 @@ def download_book(url: str) -> str:
             + str(e)
         )
 
-def process_book(url: str, chapter_q: typing.List, id: str):
+def process_book(url: str, chapter_q: typing.List):
     try:
         index = 0
         content = download_book(url)
@@ -34,9 +35,10 @@ def process_book(url: str, chapter_q: typing.List, id: str):
             index = index + 1
             chapter_text = chapter.strip()
             chapter_q.append(chapter_text)
-            upload_r2.remote(chapter, index, id)
+            # upload_r2.remote(chapter, index, id)
     except Exception as e:
         print(f"Error processing book: {e}")
+    return chapters
 
 def keep_last(lst: typing.List) -> None:
     if not isinstance(lst, typing.List):
@@ -55,6 +57,10 @@ image_marquis = (
 stub = modal.Stub("MarquisDeSade")
 stub.users = modal.Dict.new()
 
+async def r2_wrapper(chapters: typing.List):
+    _ = list(upload_r2.map.aio(chapters))
+    return
+
 @stub.function(
     image=image_marquis, 
     mounts=[
@@ -64,8 +70,10 @@ stub.users = modal.Dict.new()
         modal.Secret.from_name("poe-secret"),
         modal.Secret.from_name("r2-secret"),
     ])
-def upload_r2(content: str, idx: int, id: str):
+def upload_r2(content: str):
     tmp_file_name = "tmp_file.txt"
+    time = datetime.now()
+    formatted_time = time.strftime("%y-%m-%d-%H-%M-%S")
     try:
         r2_acc_id = os.environ["R2_ACC_ID"]
         r2 = boto3.client(
@@ -74,8 +82,8 @@ def upload_r2(content: str, idx: int, id: str):
             aws_access_key_id = os.environ["R2_ID"],
             aws_secret_access_key = os.environ["R2_SECRET"],
             region_name="apac"
-        )
-        
+       )
+
         with open(tmp_file_name, 'w', encoding='utf-8') as tmp_file:
             tmp_file.write(content)
 
@@ -83,11 +91,9 @@ def upload_r2(content: str, idx: int, id: str):
             r2.upload_fileobj(
                 tmp_file,
                 config.R2_BUCK,
-                f"{id}_{idx}.txt")
+                f"{formatted_time}.txt")
     except Exception as e:
         print(f"An error occurred: {str(e)}")
-    finally:
-        os.remove(tmp_file_name)
     return
 
 
@@ -147,6 +153,7 @@ class MarquisBot(fp.PoeBot):
         tmp_translation_lst= []
         is_EOF = False
 
+        async_chapters = []
         if not has_unfinished_chapters: 
             # the following code gets request ready for poe bots
             # at the same time, initialization for a new user is required
@@ -157,12 +164,11 @@ class MarquisBot(fp.PoeBot):
                 attachment = request.query[-1].attachments[0]
                 try:
                     # download and store to a persisted dict
-                    process_book(
+                    async_chapters = process_book(
                         attachment.url,
                         tmp_chapter_lst,
-                        request.conversation_id              
                     )
-
+                    
                     # update user
                     tmp_user: dict = {
                         "chapter_lst": tmp_chapter_lst, #updated
@@ -247,6 +253,7 @@ class MarquisBot(fp.PoeBot):
             else: # chatting mode
                 print("the user just want some chatting")
         
+        task = asyncio.create_task(r2_wrapper(async_chapters))
         # remove any possible attachments from user
         # or they will be sent to poe bots along with updated message
         for message in request.query:
@@ -289,6 +296,8 @@ class MarquisBot(fp.PoeBot):
                 text=config.SUGGESTED_REPLY_3, 
                 is_suggested_reply = True
             ) 
+
+            await task
                 
     # preparing a response for poe for settings
     async def get_settings(
