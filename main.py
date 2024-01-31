@@ -4,14 +4,60 @@ import os
 import typing
 import asyncio
 import boto3
-import modal 
+import modal
+import re
 import requests
 from datetime import datetime
 
 import fastapi_poe as fp
 
 import config
-import utils
+
+def count_asian_characters_and_punctuation(text):
+    # Regex to match Asian characters and punctuation
+    pattern = r'[\u4e00-\u9fff\u3000-\u303F\u2000-\u206F]+'
+    matches = re.findall(pattern, text)
+    return sum(len(match) for match in matches)
+
+def remove_repeated_newlines(text):
+    lines = text.split('\n')
+    non_empty_lines = [line for line in lines if line.strip() != '']
+    return '\r\n'.join(non_empty_lines)
+
+def split_into_segments(chapter_content):
+    # tmp_content = remove_repeated_newlines(chapter_content)
+    chapter_word_count = count_asian_characters_and_punctuation(chapter_content)
+    print(chapter_word_count)
+    x = chapter_word_count // 2400
+    y: int
+    if x == 0:
+        return [chapter_content]
+    else:
+        y = chapter_word_count // (x + 1)
+    
+    segments = []
+    current_segment = ""
+    current_word_count = 0
+    
+    for line in chapter_content.split('\n'):
+        line_word_count = count_asian_characters_and_punctuation(line)
+        
+        if (current_word_count > y and current_segment) or current_word_count + line_word_count > 2400:
+            segments.append(current_segment)
+            current_segment = line + '\n'
+            current_word_count = line_word_count
+        else:
+            current_segment += line + '\n'
+            current_word_count += line_word_count
+    
+    # Append the last segment if it's not empty
+    if current_segment:
+        segments.append(current_segment)
+    
+    print(segments)
+    print(len(segments))
+    
+    return segments
 
 def download_book(url: str) -> str:
     try:
@@ -145,15 +191,12 @@ class MarquisBot(fp.PoeBot):
         request.query = [MARQUIS_SYSTEM_MESSAGE] + request.query
         """        
 
-        request.query[-1].content = config.MARQUIS_SYSTEM_PROMPT + "\n\n"
-
         # for building up tmp_user to be assigned to stub.users[user_id]
         tmp_chapter_lst = []
         tmp_translation_txt = ""
         tmp_translation_lst= []
         is_EOF = False
 
-        async_chapters = []
         if not has_unfinished_chapters: 
             # the following code gets request ready for poe bots
             # at the same time, initialization for a new user is required
@@ -164,7 +207,7 @@ class MarquisBot(fp.PoeBot):
                 attachment = request.query[-1].attachments[0]
                 try:
                     # download and store to a persisted dict
-                    async_chapters = process_book(
+                    process_book(
                         attachment.url,
                         tmp_chapter_lst,
                     )
@@ -178,7 +221,7 @@ class MarquisBot(fp.PoeBot):
                     stub.users[user_id] = tmp_user
 
                     # update request to be sent to poe bots
-                    request.query[-1].content += tmp_chapter_lst[0]
+                    tmp_query_content = tmp_chapter_lst[0]
                 except Exception as e:
                     print(f"Error processing book: {e}")
         else: 
@@ -220,7 +263,7 @@ class MarquisBot(fp.PoeBot):
                         )
                     )
                 else:
-                    request.query[-1].content += tmp_user["chapter_lst"][0]
+                    tmp_query_content = tmp_user["chapter_lst"][0]
 
             elif config.SUGGESTED_REPLY_2 in query_content:
                 #update user
@@ -229,7 +272,6 @@ class MarquisBot(fp.PoeBot):
                 tmp_user["translation_lst"] += ["\n\n" + tmp_user["translation_txt"]]
                 tmp_user["translation_txt"] = ""
                 stub.users[user_id] = tmp_user
-                print(f"EXPORTING FROM {tmp_user} ...")
 
                 with open ("tmp.txt", "w", encoding="utf-8") as tmp_file:
                     for chapter in tmp_user["translation_lst"]:
@@ -249,34 +291,39 @@ class MarquisBot(fp.PoeBot):
                         )
                     )
             elif config.SUGGESTED_REPLY_3 in query_content:
-                request.query[-1].content += stub.users[user_id]["chapter_lst"][0]
+                tmp_query_content = stub.users[user_id]["chapter_lst"][0]
             else: # chatting mode
                 print("the user just want some chatting")
         
-        task = asyncio.create_task(r2_wrapper(async_chapters))
-        # remove any possible attachments from user
-        # or they will be sent to poe bots along with updated message
+        # task = asyncio.create_task(r2_wrapper(async_chapters))
         for message in request.query:
             message.attachments = [] 
 
         if not is_EOF:
-            async for partial in fp.stream_request(
-                request, config.DEFAULT_PROMPT_BOT, request.access_key
-            ):
-                if isinstance(partial, fp.types.MetaResponse):
-                    continue
-                elif partial.is_suggested_reply:
-                    # will use custome reply
-                    # currently nothing though
-                    continue
-                elif partial.is_replace_response:
-                    yield fp.PartialResponse(
-                            text=partial.text, 
-                            is_replace_response= True
+            for segment in split_into_segments(tmp_query_content):
+                
+                request.query[-1].content = config.MARQUIS_SYSTEM_PROMPT + "\n\n" + segment
+                async for partial in fp.stream_request(
+                    request, config.DEFAULT_PROMPT_BOT, request.access_key
+                ):
+                    if isinstance(partial, fp.types.MetaResponse):
+                        continue
+                    elif partial.is_suggested_reply:
+                        # will use custome reply
+                        # currently nothing though
+                        continue
+                    elif partial.is_replace_response:
+                        yield fp.PartialResponse(
+                                text=partial.text, 
+                                is_replace_response= True
+                            )
+                    else:
+                        yield fp.PartialResponse(
+                            text=partial.text
                         )
-                else:
-                    yield fp.PartialResponse(text=partial.text)
-                    tmp_translation_txt += partial.text
+                        tmp_translation_txt += partial.text
+                fp.PartialResponse(text="\n\n")
+
             tmp_user = {
                 "chapter_lst": stub.users[user_id]["chapter_lst"],
                 "translation_txt": tmp_translation_txt, # updated
@@ -297,7 +344,7 @@ class MarquisBot(fp.PoeBot):
                 is_suggested_reply = True
             ) 
 
-            await task
+            # await task
                 
     # preparing a response for poe for settings
     async def get_settings(
@@ -311,9 +358,6 @@ class MarquisBot(fp.PoeBot):
             allow_attachments = config.ALLOW_ATTACHMENTS,
             introduction_message = config.SYSTEM_INTRO
         )
-
-
-
 
 @stub.function(
     image=image_marquis, 
