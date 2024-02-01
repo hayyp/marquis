@@ -42,7 +42,8 @@ def split_into_segments(chapter_content):
     for line in chapter_content.split('\n'):
         line_word_count = count_asian_characters_and_punctuation(line)
         
-        if (current_word_count > y and current_segment) or current_word_count + line_word_count > 2400:
+        if ((current_word_count > y and current_segment) 
+            or current_word_count + line_word_count > 2400):
             segments.append(current_segment)
             current_segment = line + '\n'
             current_word_count = line_word_count
@@ -100,7 +101,7 @@ image_marquis = (
     modal.Image.debian_slim()
     .pip_install(*config.REQUIREMENTS)
 )
-stub = modal.Stub("MarquisDeSade")
+stub = modal.Stub("MarquisDeSade-16k")
 stub.users = modal.Dict.new()
 
 async def r2_wrapper(chapters: typing.List):
@@ -322,7 +323,9 @@ class MarquisBot(fp.PoeBot):
                             text=partial.text
                         )
                         tmp_translation_txt += partial.text
-                fp.PartialResponse(text="\n\n")
+                        tmp_translation_txt += "\n"
+                yield fp.PartialResponse(text="\n\n")
+
 
             tmp_user = {
                 "chapter_lst": stub.users[user_id]["chapter_lst"],
@@ -374,5 +377,5 @@ def marquis_app():
     bot = MarquisBot()
     app = fp.make_app(
         bot, 
-        access_key=os.environ["POE_ACCESS_KEY"])
+        access_key=os.environ["POE_ACCESS_KEY_16"])
     return app
