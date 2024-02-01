@@ -14,8 +14,7 @@ import fastapi_poe as fp
 import config
 
 def count_asian_characters_and_punctuation(text):
-    # Regex to match Asian characters and punctuation
-    pattern = r'[\u4e00-\u9fff\u3000-\u303F\u2000-\u206F]+'
+    pattern = r'[\u4e00-\u9fff\u3000-\u303F\u2000-\u206F\uFF00-\uFFEF【】：；“”‘’，。·￥……《》？（）]+'
     matches = re.findall(pattern, text)
     return sum(len(match) for match in matches)
 
@@ -28,7 +27,7 @@ def split_into_segments(chapter_content):
     # tmp_content = remove_repeated_newlines(chapter_content)
     chapter_word_count = count_asian_characters_and_punctuation(chapter_content)
     print("Ch. Word Count: ", chapter_word_count)
-    x = chapter_word_count // 2400
+    x = chapter_word_count // config.TOKEN_LIMIT
     y: int
     if x == 0:
         return [chapter_content]
@@ -43,7 +42,7 @@ def split_into_segments(chapter_content):
         line_word_count = count_asian_characters_and_punctuation(line)
         
         if ((current_word_count > y and current_segment) 
-            or current_word_count + line_word_count > 2400):
+            or current_word_count + line_word_count > config.TOKEN_LIMIT):
             segments.append(current_segment)
             current_segment = line + '\n'
             current_word_count = line_word_count

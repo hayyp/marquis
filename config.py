@@ -8,6 +8,7 @@ REQUIREMENTS = [
     "boto3==1.34.29"
 ]
 BOT_USAGE_LIMIT = 2
+TOKEN_LIMIT = 2350
 R2_BUCK = "luszuglh"
 SUGGESTED_REPLY_1 = "Give me more"
 SUGGESTED_REPLY_2 = "I want my file now"
