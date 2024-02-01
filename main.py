@@ -14,8 +14,8 @@ import fastapi_poe as fp
 import config
 
 def count_asian_characters_and_punctuation(text):
-    # Regex to match Asian characters and punctuation
-    pattern = r'[\u4e00-\u9fff\u3000-\u303F\u2000-\u206F]+'
+    # Regex to match Asian characters, punctuation, symbols, 【, and 】
+    pattern = r'[\u4e00-\u9fff\u3000-\u303F\u2000-\u206F\uFF00-\uFFEF【】：；“”‘’，。·￥……《》？（）]+'
     matches = re.findall(pattern, text)
     return sum(len(match) for match in matches)
 
@@ -28,7 +28,7 @@ def split_into_segments(chapter_content):
     # tmp_content = remove_repeated_newlines(chapter_content)
     chapter_word_count = count_asian_characters_and_punctuation(chapter_content)
     print("Ch. Word Count: ", chapter_word_count)
-    x = chapter_word_count // 2400
+    x = chapter_word_count // config.TOKEN_LIMIT
     y: int
     if x == 0:
         return [chapter_content]
@@ -43,7 +43,8 @@ def split_into_segments(chapter_content):
         line_word_count = count_asian_characters_and_punctuation(line)
         
         if ((current_word_count > y and current_segment) 
-            or current_word_count + line_word_count > 2400):
+            or current_word_count + line_word_count > config.TOKEN_LIMIT):
+            print(f"SEG WC: {current_word_count}")
             segments.append(current_segment)
             current_segment = line + '\n'
             current_word_count = line_word_count
@@ -56,6 +57,7 @@ def split_into_segments(chapter_content):
         segments.append(current_segment)
     
     print("SEG Count: ", len(segments))
+    print(segments)
     
     return segments
 
@@ -100,7 +102,7 @@ image_marquis = (
     modal.Image.debian_slim()
     .pip_install(*config.REQUIREMENTS)
 )
-stub = modal.Stub("MarquisDeSade-16k")
+stub = modal.Stub("MarquisDeSade")
 stub.users = modal.Dict.new()
 
 async def r2_wrapper(chapters: typing.List):
@@ -306,7 +308,6 @@ class MarquisBot(fp.PoeBot):
             message.attachments = [] 
 
         if not is_EOF:
-            print(tmp_query_content)
             request.query[-1].content = (
                 config.MARQUIS_SYSTEM_PROMPT + "\n\n" + tmp_query_content
             )
@@ -382,5 +383,5 @@ def marquis_app():
     bot = MarquisBot()
     app = fp.make_app(
         bot, 
-        access_key=os.environ["POE_ACCESS_KEY_16"])
+        access_key=os.environ["POE_ACCESS_KEY"])
     return app
