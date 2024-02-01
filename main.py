@@ -27,7 +27,7 @@ def remove_repeated_newlines(text):
 def split_into_segments(chapter_content):
     # tmp_content = remove_repeated_newlines(chapter_content)
     chapter_word_count = count_asian_characters_and_punctuation(chapter_content)
-    print(chapter_word_count)
+    print("Ch. Word Count: ", chapter_word_count)
     x = chapter_word_count // 2400
     y: int
     if x == 0:
@@ -55,8 +55,7 @@ def split_into_segments(chapter_content):
     if current_segment:
         segments.append(current_segment)
     
-    print(segments)
-    print(len(segments))
+    print("SEG Count: ", len(segments))
     
     return segments
 
@@ -143,7 +142,13 @@ def upload_r2(content: str):
         print(f"An error occurred: {str(e)}")
     return
 
-
+def chapters_to_segments(chapters: typing.List):
+    segments = []
+    for chapter in chapters:
+        segments += split_into_segments(chapter)
+    
+    return segments
+    
 
 
 class MarquisBot(fp.PoeBot):
@@ -212,7 +217,7 @@ class MarquisBot(fp.PoeBot):
                         attachment.url,
                         tmp_chapter_lst,
                     )
-                    
+                    tmp_chapter_lst = chapters_to_segments(tmp_chapter_lst)
                     # update user
                     tmp_user: dict = {
                         "chapter_lst": tmp_chapter_lst, #updated
@@ -301,30 +306,30 @@ class MarquisBot(fp.PoeBot):
             message.attachments = [] 
 
         if not is_EOF:
-            for segment in split_into_segments(tmp_query_content):
-                
-                request.query[-1].content = config.MARQUIS_SYSTEM_PROMPT + "\n\n" + segment
-                async for partial in fp.stream_request(
-                    request, config.DEFAULT_PROMPT_BOT, request.access_key
-                ):
-                    if isinstance(partial, fp.types.MetaResponse):
-                        continue
-                    elif partial.is_suggested_reply:
-                        # will use custome reply
-                        # currently nothing though
-                        continue
-                    elif partial.is_replace_response:
-                        yield fp.PartialResponse(
-                                text=partial.text, 
-                                is_replace_response= True
-                            )
-                    else:
-                        yield fp.PartialResponse(
-                            text=partial.text
+            print(tmp_query_content)
+            request.query[-1].content = (
+                config.MARQUIS_SYSTEM_PROMPT + "\n\n" + tmp_query_content
+            )
+            async for partial in fp.stream_request(
+                request, config.DEFAULT_PROMPT_BOT, request.access_key
+            ):
+                if isinstance(partial, fp.types.MetaResponse):
+                    continue
+                elif partial.is_suggested_reply:
+                    # will use custome reply
+                    # currently nothing though
+                    continue
+                elif partial.is_replace_response:
+                    yield fp.PartialResponse(
+                            text=partial.text, 
+                            is_replace_response= True
                         )
-                        tmp_translation_txt += partial.text
-                        tmp_translation_txt += "\n"
-                yield fp.PartialResponse(text="\n\n")
+                else:
+                    yield fp.PartialResponse(
+                        text=partial.text
+                    )
+                    tmp_translation_txt += partial.text
+            tmp_translation_txt += "\n"
 
 
             tmp_user = {
