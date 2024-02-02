@@ -14,7 +14,7 @@ import fastapi_poe as fp
 import config
 
 def count_asian_characters_and_punctuation(text):
-    pattern = r'[\u4e00-\u9fff\u3000-\u303F\u2000-\u206F]+'
+    pattern = r'[\u4e00-\u9fff\u3000-\u303F\u2000-\u206F\uFF00-\uFFEF【】：；“”‘’，。·￥……《》？（）]+'
     matches = re.findall(pattern, text)
     return sum(len(match) for match in matches)
 
