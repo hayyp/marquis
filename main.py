@@ -43,6 +43,7 @@ def split_into_segments(chapter_content):
         
         if ((current_word_count > y and current_segment) 
             or current_word_count + line_word_count > config.TOKEN_LIMIT):
+            print(f"SEG WC: {current_word_count}")
             segments.append(current_segment)
             current_segment = line + '\n'
             current_word_count = line_word_count
@@ -55,6 +56,7 @@ def split_into_segments(chapter_content):
         segments.append(current_segment)
     
     print("SEG Count: ", len(segments))
+    print(segments)
     
     return segments
 
@@ -99,7 +101,7 @@ image_marquis = (
     modal.Image.debian_slim()
     .pip_install(*config.REQUIREMENTS)
 )
-stub = modal.Stub("MarquisDeSade-16k")
+stub = modal.Stub("MarquisDeSade_FC")
 stub.users = modal.Dict.new()
 stub.prompts = modal.Dict.new()
 
@@ -221,7 +223,7 @@ class MarquisBot(fp.PoeBot):
                         attachment.url,
                         tmp_chapter_lst,
                     )
-                    tmp_chapter_lst = chapters_to_segments(tmp_chapter_lst)
+                    # tmp_chapter_lst = chapters_to_segments(tmp_chapter_lst)
                     # update user
                     tmp_user: dict = {
                         "chapter_lst": tmp_chapter_lst, #updated
@@ -314,31 +316,35 @@ class MarquisBot(fp.PoeBot):
             message.attachments = [] 
 
         if not is_EOF:
-            request.query[-1].content = (
-                config.MARQUIS_SYSTEM_PROMPT + "\n\n" + tmp_query_content
-            ) if user_id not in stub.prompts else (
-                stub.prompts[user_id] + "\n\n" + tmp_query_content
-            )
-            async for partial in fp.stream_request(
-                request, config.DEFAULT_PROMPT_BOT, request.access_key
-            ):
-                if isinstance(partial, fp.types.MetaResponse):
-                    continue
-                elif partial.is_suggested_reply:
-                    # will use custome reply
-                    # currently nothing though
-                    continue
-                elif partial.is_replace_response:
-                    yield fp.PartialResponse(
-                            text=partial.text, 
-                            is_replace_response= True
+
+            for segment in split_into_segments(tmp_query_content):
+                request.query[-1].content = (
+                    config.MARQUIS_SYSTEM_PROMPT + "\n\n" + segment
+                ) if user_id not in stub.prompts else (
+                    stub.prompts[user_id] + "\n\n" + segment
+                )
+
+                async for partial in fp.stream_request(
+                    request, config.DEFAULT_PROMPT_BOT, request.access_key
+                ):
+                    if isinstance(partial, fp.types.MetaResponse):
+                        continue
+                    elif partial.is_suggested_reply:
+                        # will use custome reply
+                        # currently nothing though
+                        continue
+                    elif partial.is_replace_response:
+                        yield fp.PartialResponse(
+                                text=partial.text, 
+                                is_replace_response= True
+                            )
+                    else:
+                        yield fp.PartialResponse(
+                            text=partial.text
                         )
-                else:
-                    yield fp.PartialResponse(
-                        text=partial.text
-                    )
-                    tmp_translation_txt += partial.text
-            tmp_translation_txt += "\n"
+                        tmp_translation_txt += partial.text
+                tmp_translation_txt += "\n"
+                yield fp.PartialResponse(text="\n")
 
 
             tmp_user = {
@@ -391,5 +397,5 @@ def marquis_app():
     bot = MarquisBot()
     app = fp.make_app(
         bot, 
-        access_key=os.environ["POE_ACCESS_KEY_16"])
+        access_key=os.environ["POE_ACCESS_KEY_FC"])
     return app

@@ -1,5 +1,5 @@
 # dont have a list for bot models, just according to fastapi_poe's site
-DEFAULT_PROMPT_BOT = "ChatGPT-16k"
+DEFAULT_PROMPT_BOT = "ChatGPT"
 ALT_PROMPT_BOT="Claude-2-100k"
 ALLOW_ATTACHMENTS = True
 REQUIREMENTS = [
@@ -7,8 +7,8 @@ REQUIREMENTS = [
     "requests==2.31.0",
     "boto3==1.34.29"
 ]
-BOT_USAGE_LIMIT = 2
-TOKEN_LIMIT = 2350
+BOT_USAGE_LIMIT = 5
+TOKEN_LIMIT = 1150
 R2_BUCK = "luszuglh"
 SUGGESTED_REPLY_1 = "Give me more"
 SUGGESTED_REPLY_2 = "I want my file now"
