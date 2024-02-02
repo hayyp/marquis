@@ -14,8 +14,7 @@ import fastapi_poe as fp
 import config
 
 def count_asian_characters_and_punctuation(text):
-    # Regex to match Asian characters, punctuation, symbols, 【, and 】
-    pattern = r'[\u4e00-\u9fff\u3000-\u303F\u2000-\u206F\uFF00-\uFFEF【】：；“”‘’，。·￥……《》？（）]+'
+    pattern = r'[\u4e00-\u9fff\u3000-\u303F\u2000-\u206F]+'
     matches = re.findall(pattern, text)
     return sum(len(match) for match in matches)
 
@@ -104,6 +103,7 @@ image_marquis = (
 )
 stub = modal.Stub("MarquisDeSade")
 stub.users = modal.Dict.new()
+stub.prompts = modal.Dict.new()
 
 async def r2_wrapper(chapters: typing.List):
     _ = list(upload_r2.map.aio(chapters))
@@ -151,8 +151,6 @@ def chapters_to_segments(chapters: typing.List):
     
     return segments
     
-
-
 class MarquisBot(fp.PoeBot):
     async def get_response(
             self, request: fp.QueryRequest
@@ -162,9 +160,15 @@ class MarquisBot(fp.PoeBot):
         query_content = request.query[-1].content
         has_unfinished_chapters = False
 
-        if user_id not in stub.users: 
+        if user_id not in stub.users or request.query[-1].attachments: 
         # a user that is never seen before
-
+            query_word_count = len(query_content.split())
+            print(f"query w.c. {query_word_count}")
+            if query_word_count > 5:
+                stub.prompts[user_id] = query_content
+            else:
+                if user_id in stub.prompts:
+                    stub.prompts.pop(user_id)
             try:
                 user_template: dict = {
                     "chapter_lst": [],
@@ -262,6 +266,8 @@ class MarquisBot(fp.PoeBot):
                     )
 
                     stub.users.pop(user_id)
+                    if user_id in stub.prompts:
+                        stub.prompts.pop(user_id)
                     is_EOF = True 
                     # should not communicate with Poe bots anymore
                     yield fp.PartialResponse(
@@ -292,6 +298,8 @@ class MarquisBot(fp.PoeBot):
                         filename = "translated_text.txt"
                     )
                     stub.users.pop(user_id)
+                    if user_id in stub.prompts:
+                        stub.prompts.pop(user_id)
                     is_EOF = True
                     yield fp.PartialResponse(
                         text = (
@@ -310,6 +318,8 @@ class MarquisBot(fp.PoeBot):
         if not is_EOF:
             request.query[-1].content = (
                 config.MARQUIS_SYSTEM_PROMPT + "\n\n" + tmp_query_content
+            ) if user_id not in stub.prompts else (
+                stub.prompts[user_id] + "\n\n" + tmp_query_content
             )
             async for partial in fp.stream_request(
                 request, config.DEFAULT_PROMPT_BOT, request.access_key
