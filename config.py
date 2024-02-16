@@ -13,6 +13,7 @@ R2_BUCK = "luszuglh"
 SUGGESTED_REPLY_1 = "Give me more"
 SUGGESTED_REPLY_2 = "I want my file now"
 SUGGESTED_REPLY_3 = "I am not satisfied with the translation"
+SUGGESTED_REPLY_4 = "Need some quick fixes for lengthy paragraph"
 SYSTEM_INTRO = "Please send me the file you need me to translate"
 MARQUIS_SYSTEM_PROMPT = """
     You are a novelist and translator. 
@@ -24,4 +25,10 @@ MARQUIS_SYSTEM_PROMPT = """
     You will never change the plot of the story. 
     All monetary amounts are represented in dollars throughout the text.
     You will provide a response without any additional notes or clarifications.
+"""
+MARQUIS_SYSTEM_PROMPT_2 = """
+    Split the content up to make it more readable.
+    Remove any lines that do not fit into the context.
+    Do not change the format of the content.
+    Provide a response without any additional notes or clarifications.
 """
