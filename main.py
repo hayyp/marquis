@@ -308,6 +308,8 @@ class MarquisBot(fp.PoeBot):
                     )
             elif config.SUGGESTED_REPLY_3 in query_content:
                 tmp_query_content = stub.users[user_id]["chapter_lst"][0]
+            elif config.SUGGESTED_REPLY_4 in query_content:
+                tmp_query_content = stub.users[user_id]["translation_txt"]
             else: # chatting mode
                 print("the user just want some chatting")
         
@@ -316,11 +318,14 @@ class MarquisBot(fp.PoeBot):
             message.attachments = [] 
 
         if not is_EOF:
-            request.query[-1].content = (
-                config.MARQUIS_SYSTEM_PROMPT + "\n\n" + tmp_query_content
-            ) if user_id not in stub.prompts else (
-                stub.prompts[user_id] + "\n\n" + tmp_query_content
-            )
+            if config.SUGGESTED_REPLY_4 in query_content:
+                request.query[-1].content = config.MARQUIS_SYSTEM_PROMPT_2 + "\n\n" + tmp_query_content
+            else:
+                request.query[-1].content = (
+                    config.MARQUIS_SYSTEM_PROMPT + "\n\n" + tmp_query_content
+                ) if user_id not in stub.prompts else (
+                    stub.prompts[user_id] + "\n\n" + tmp_query_content
+                )
             async for partial in fp.stream_request(
                 request, config.DEFAULT_PROMPT_BOT, request.access_key
             ):
@@ -360,6 +365,10 @@ class MarquisBot(fp.PoeBot):
             ) 
             yield fp.PartialResponse(
                 text=config.SUGGESTED_REPLY_3, 
+                is_suggested_reply = True
+        ) 
+        yield fp.PartialResponse(
+                text=config.SUGGESTED_REPLY_4, 
                 is_suggested_reply = True
             ) 
 
